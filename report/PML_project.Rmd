@@ -5,18 +5,26 @@ date: "22 de febrero de 2015"
 output: html_document
 ---
 
-```{r}
-ml_training <- read.csv("data/pml-training.csv")
-summary(pml_training)
+# Motivation
+
+
+
+# Load and process Data
+
+```{r, cache=TRUE}
+setwd("~/projects/predmachlearn-011/")
+pml_training <- read.csv("data/pml-training.csv")
+# summary(pml_training)
 ```
 
 Summary() funtion shows that there are empty values in fields as "min_yaw_belt"
 and "#DIV/0!" values in fields as "min_yaw_forearm" that make that these fields
 are taken as factor. So, this values has to be read as NA.
 
-```{r}
+```{r, cache=TRUE}
+setwd("~/projects/predmachlearn-011/")
 pml_training <- read.csv("data/pml-training.csv", na.strings=c("NA","#DIV/0!",""))
-summary(pml_training) # no more incorrect factor fields
+# summary(pml_training) # no more incorrect factor fields
 ```
 Some columns had a lot of missing values and the others none. So take only
 columns without missing values.
@@ -25,4 +33,174 @@ columns without missing values.
 library(ggplot2)
 qplot(1:ncol(pml_training), colSums(is.na(pml_training)), xlab = "col", ylab = "# of NAs")
 ```
+
+```{r}
+predictors <- colnames(pml_training)
+predictors <- predictors[colSums(is.na(pml_training)) == 0] # columns without missing values
+```
+
+First seven columns are description, time and window data, therefore are not relevant
+
+```{r}
+predictors <- predictors[-(1:7)]
+```
+
+With this selection we have gone from 160 to 53 columns. All the remaining predictors are not near zero variance.
+
+```{r}
+library("caret")
+# nearZeroVar(pml_training[, predictors], saveMetrics = TRUE)
+```
+
+We take our final data set:
+
+```{r}
+pml_training <- pml_training[, predictors]
+```
+
+Load the testing data to use our final model for blind prediction:
+
+```{r, cache=TRUE}
+setwd("~/projects/predmachlearn-011/")
+pml_testing <- read.csv("data/pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+pml_testing <- pml_testing[, predictors[1:52]]
+```
+library("pander")
+pander(head(pml_training[,1:10]))
+
+# Exploratory Analysis
+
+We want to see how our predictors behave, as we have many variables (52), we
+separated them in 4 subsets of 13 for "bet", "dumbbell", "arm" and "forearm"
+variables:
+
+```{r}
+beltC <- c(grep("belt", predictors), 53)
+dumbC <- c(grep("dumbbell", predictors), 53)
+armC <- c(grep("[^(fore)]arm", predictors), 53)
+foreC <- c(grep("forearm", predictors), 53)
+```
+
+Then we plot them using violen geometry:
+
+```{r, cache=TRUE}
+library(reshape2)
+
+groupViolin <- function(groupC){
+    groupM <- melt(pml_training[, groupC], id.vars = "classe")
+    ggplot(groupM, aes(x=classe, y=value)) +
+        geom_violin(aes(color=classe, fill=classe), alpha=1/2) +
+        facet_wrap(~ variable, scale="free_y") +
+        scale_color_brewer(palette="Set1") +
+        scale_fill_brewer(palette="Set1") +
+        labs(x="", y="") +
+        theme(legend.position="none")
+}
+
+groupViolin(beltC)
+groupViolin(dumbC)
+groupViolin(armC)
+groupViolin(foreC)
+```
+
+# Train parameters and data partition
+
+We set our train parameters as 5-fold repeated cross validation across
+different models:
+
+```{r}
+library(caret)
+
+# Train control across models
+trCtrl <- trainControl(method="repeatedcv", number=5, repeats=1, 
+                       verboseIter=FALSE)
+```
+
+And split pml_training dataset in 60% training and 40% testing.
+
+```{r}
+## set seed
+set.seed(300369)
+
+inTrain <- createDataPartition(y=pml_training$classe, p=0.6, list=FALSE)
+training <- pml_training[inTrain, ]
+testing <- pml_training[-inTrain, ]
+dim(training)
+dim(testing)
+```
+# Preprocessing
+
+To avoid numerical annoyances, calculate centering and scaling over training
+data, and apply to training and testing subsets.
+
+```{r}
+library("data.table")
+
+preProc <- preProcess(training[1:52])
+predppTrain <- predict(preProc, training[1:52])
+trainingCS <- data.table(data.frame(classe = training$classe, predppTrain))
+
+predppTest <- predict(preProc, testing[1:52])
+testingCS <- data.table(data.frame(classe = testing$classe, predppTest))
+```
+
+# Decision tree
+
+We start trying with a simple decision tree model.
+
+```{r, cache=TRUE}
+system.time(treeFit <- train(classe ~., data=trainingCS, method="rpart", trControl=trCtrl))
+treePred <- predict(treeFit, newdata=testingCS)
+treeCM <- confusionMatrix(treePred, testingCS$classe)
+treeCM
+```
+
+For pedagogical reasons we present a plot given by `rattle` package.
+
+```{r}
+library("rattle")
+library("rpart.plot")
+fancyRpartPlot(treeFit$finalModel)
+```
+
+This fancy model only gives `r sprintf(treeCM$overall["Accuracy"]*100, fmt = "%.2f")` % of Accuracy.
+
+# Linear Discriminant Analysis
+
+We try also with a fast Linear Discriminant Analysis model.
+
+```{r, cache=TRUE}
+system.time(ldaFit <- train(classe ~., data=trainingCS, method="lda", trControl=trCtrl))
+ldaPred <- predict(ldaFit, newdata=testingCS)
+ldaCM <- confusionMatrix(ldaPred, testingCS$classe)
+ldaCM
+```
+
+This model only gives `r sprintf(ldaCM$overall["Accuracy"]*100, fmt = "%.2f")` % of Accuracy.
+
+
+# Random Forest
+
+Finally, a more powerful but 
+
+```{r, cache=TRUE}
+system.time(rfFit <- train(classe ~., data=trainingCS, method="rf", trControl=trCtrl))
+rfPred <- predict(rfFit, newdata=testingCS)
+rfCM <- confusionMatrix(rfPred, testingCS$classe)
+rfCM
+```
+
+
+```{r}
+pml_testingCS <- predict(preProc, pml_testing)
+treePredTesting <- predict(treeFit, newdata=pml_testingCS)
+treePredTesting
+ldaPredTesting <- predict(ldaFit, newdata=pml_testingCS)
+ldaPredTesting
+rfPredTesting <- predict(rfFit, newdata=pml_testingCS)
+rfPredTesting
+```
+
+# Conclusions
+
 
