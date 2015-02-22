@@ -68,3 +68,7 @@ ldaCM <- confusionMatrix(ldaPred, testingCS$classe)
 rfFit <- train(classe ~., data=trainingCS, method="rf", trControl=trCtrl)
 rfPred <- predict(rfFit, newdata=testingCS)
 rfCM <- confusionMatrix(rfPred, testingCS$classe)
+
+pml_testingCS <- predict(preProc, pml_testing)
+rfPredTesting <- predict(rfFit, newdata=pml_testing)
+rfPredTesting
