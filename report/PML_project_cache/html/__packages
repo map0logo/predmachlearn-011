@@ -1,0 +1,12 @@
+base
+ggplot2
+lattice
+caret
+pander
+reshape2
+data.table
+rpart
+rattle
+rpart.plot
+MASS
+randomForest
