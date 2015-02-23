@@ -7,11 +7,10 @@ output: html_document
 
 # Motivation
 
-We use data form Human Activity Recognition project (HAR) from Groupware
-Research Group to recognize how well barbell liftws are made using data from
-accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
-
-http://groupware.les.inf.puc-rio.br/har
+To use Human Activity Recognition project (HAR) data from Groupware
+Research Group http://groupware.les.inf.puc-rio.br/har to recognize how well
+barbell lifts are made using data from accelerometers on the belt, forearm, arm,
+and dumbell of 6 participants.
 
 # Load and process Data
 
@@ -30,6 +29,7 @@ setwd("~/projects/predmachlearn-011/")
 pml_training <- read.csv("data/pml-training.csv", na.strings=c("NA","#DIV/0!",""))
 # summary(pml_training) # no more incorrect factor fields
 ```
+
 Some columns had a lot of missing values and the others none. So take only
 columns without missing values.
 
@@ -69,14 +69,12 @@ setwd("~/projects/predmachlearn-011/")
 pml_testing <- read.csv("data/pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
 pml_testing <- pml_testing[, predictors[1:52]]
 ```
-library("pander")
-pander(head(pml_training[,1:10]))
 
 # Exploratory Analysis
 
 We want to see how our predictors behave, as we have many variables (52), we
-separated them in 4 subsets of 13 for "bet", "dumbbell", "arm" and "forearm"
-variables:
+separated them in 4 subsets of 13 variables for "bet", "dumbbell", "arm" and
+"forearm" variables:
 
 ```{r}
 beltC <- c(grep("belt", predictors), 53)
@@ -85,7 +83,7 @@ armC <- c(grep("[^(fore)]arm", predictors), 53)
 foreC <- c(grep("forearm", predictors), 53)
 ```
 
-Then we plot them using violen geometry:
+Then we plot them using violin geometry:
 
 ```{r, cache=TRUE}
 library(reshape2)
@@ -120,7 +118,7 @@ trCtrl <- trainControl(method="repeatedcv", number=5, repeats=1,
                        verboseIter=FALSE)
 ```
 
-And split pml_training dataset in 60% training and 40% testing.
+And split pml_training dataset in 60% training and 40% testing:
 
 ```{r}
 ## set seed
@@ -174,6 +172,7 @@ This fancy model only gives `r sprintf(treeCM$overall["Accuracy"]*100, fmt = "%.
 We try also with a fast Linear Discriminant Analysis model.
 
 ```{r, cache=TRUE}
+trainingCS <- data.table(data.frame(classe = training$classe, predppTrain))
 system.time(ldaFit <- train(classe ~., data=trainingCS, method="lda", trControl=trCtrl))
 ldaPred <- predict(ldaFit, newdata=testingCS)
 ldaCM <- confusionMatrix(ldaPred, testingCS$classe)
@@ -187,17 +186,19 @@ This faster model only gives `r sprintf(ldaCM$overall["Accuracy"]*100, fmt = "%.
 Finally, a more powerful random forest model: 
 
 ```{r, cache=TRUE}
+trainingCS <- data.table(data.frame(classe = training$classe, predppTrain))
 system.time(rfFit <- train(classe ~., data=trainingCS, method="rf", trControl=trCtrl))
 rfPred <- predict(rfFit, newdata=testingCS)
 rfCM <- confusionMatrix(rfPred, testingCS$classe)
 rfCM
 ```
 
-This slower model gives an impressive `r sprintf(rfCM$overall["Accuracy"]*100, fmt = "%.2f")` % of Accuracy.
+This slower (to calculate) model gives an impressive `r sprintf(rfCM$overall["Accuracy"]*100, fmt = "%.2f")` % of Accuracy.
 
 # Apply models to the 20 test cases
 
-We apply our models to *pml_testing* data:
+We apply our models to *pml_testing* data for the sake of comparing and assignment
+submission:
 
 ```{r}
 pml_testingCS <- predict(preProc, pml_testing)
@@ -211,7 +212,12 @@ rfPredTesting
 
 # Conclusions
 
-Random Forest gives a high accuraccy of 99% to fit accelerometer data. Linear
-Discriminant near 70% but fits the data very faster (2.5 seg in comparison of
-735.5 seg of Random Forest). For a real time application with varying conditions
-LDA would be a better choice.
+Random Forest return a high accuraccy of 99% to predict proper weight lifting
+fitting accelerometer data. Linear Discriminant gives an accuracy near 70% but
+fits the data very faster (2.5 seg in comparison of 735.5 seg (more than 12 min)
+of Random Forest).
+
+For a real time application with varying conditions LDA could be a better
+choice.
+
+Random Forest fitting predicts correctly every observation over the 20 test cases.

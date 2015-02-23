@@ -23,6 +23,7 @@ predictors <- predictors[-(1:7)]
 
 # From 160 to 53 columns
 
+library(caret)
 # All the remaining predictors are not near zero variance
 nearZeroVar(pml_training[, predictors], saveMetrics = TRUE)
 

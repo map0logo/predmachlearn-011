@@ -70,5 +70,5 @@ rfPred <- predict(rfFit, newdata=testingCS)
 rfCM <- confusionMatrix(rfPred, testingCS$classe)
 
 pml_testingCS <- predict(preProc, pml_testing)
-rfPredTesting <- predict(rfFit, newdata=pml_testing)
+rfPredTesting <- predict(rfFit, newdata=pml_testingCS)
 rfPredTesting
